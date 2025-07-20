@@ -17,7 +17,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
         
         self.text_display = QLabel("Loading text...")
-        self.text_display.setStyleSheet("font-size: 18px; margin: 20px; border: 2px solid #ccc; padding: 15px; border-radius: 5px;")
+        self.text_display.setStyleSheet("font-size: 20px; margin: 20px; border: 2px solid #ccc; padding: 15px; border-radius: 5px; word-spacing: 3px; letter-spacing: 1.2px")
         self.text_display.setWordWrap(True)
         layout.addWidget(self.text_display)
         
