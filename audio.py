@@ -11,4 +11,4 @@ def record_audio(filename="temp.wav", duration=3, fs=44100, channels=1):
     sf.write(filename, recording, fs)
     print(f"Saved: {filename}")
 
-#record_audio()
+record_audio()
