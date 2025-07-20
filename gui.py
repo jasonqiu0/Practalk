@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton
-
+import os
+import json
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -11,12 +12,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         
-        title_label = QLabel("Welcome to Practalk!")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold;")
+        title_label = QLabel("Practalk")
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 20px;")
         layout.addWidget(title_label)
         
-        self.text_display = QLabel("Sample text will appear here...")
-        self.text_display.setStyleSheet("font-size: 18px; margin: 20px;")
+        self.text_display = QLabel("Loading text...")
+        self.text_display.setStyleSheet("font-size: 18px; margin: 20px; border: 2px solid #ccc; padding: 15px; border-radius: 5px;")
+        self.text_display.setWordWrap(True)
         layout.addWidget(self.text_display)
         
         self.record_button = QPushButton("Start Recording")
@@ -26,3 +28,23 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.record_button)
         
         layout.addStretch()
+
+        self.load_text()
+
+    def load_text(self):
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            json_path = os.path.join(current_dir, 'resources', 'texts.json')
+
+            with open(json_path, 'r') as f:
+                texts = json.load(f)
+                for item in texts:
+                    if item['id']==1:
+                        self.text_display.setText(item['text'])
+                        break
+                    else:
+                        self.text_display.setText("Text with ID 1 not found")
+        except FileNotFoundError:
+            self.text_display.setText("Texts file not found")
+        except json.JSONDecodeError:
+            self.text_display.setText("Error reading texts file")
