@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QApplication
+from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QApplication, QHBoxLayout
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject, pyqtSlot, QEvent, QCoreApplication
 import os
 import json
@@ -9,7 +9,6 @@ from audio import record_audio
 from whisper_config import transcribe  
 from grader import grade_text
 
-# Define a custom event for thread-safe signaling
 RecordingFinishedEventType = QEvent.Type(QEvent.registerEventType())
 
 class RecordingFinishedEvent(QEvent):
@@ -17,9 +16,7 @@ class RecordingFinishedEvent(QEvent):
         super().__init__(RecordingFinishedEventType)
 
 class Worker(QObject):
-    """
-    Worker to handle transcription in a background thread and safely signal results.
-    """
+
     transcription_finished = pyqtSignal(str, str)
     transcription_error = pyqtSignal(str)
 
@@ -63,19 +60,40 @@ class MainWindow(QMainWindow):
         self.text_display.setWordWrap(True)
         layout.addWidget(self.text_display)
         
-        self.status_label = QLabel("Ready to record")
+        # Remove the status label text
+        self.status_label = QLabel("")
         self.status_label.setStyleSheet(
             "font-size: 14px; color: #666; margin-top: 10px; margin-left: 350px; margin-right: 350px;"
         )
         layout.addWidget(self.status_label)
 
+
+        self.button_layout = QHBoxLayout()
+
         self.record_button = QPushButton("Start Recording")
         self.record_button.setStyleSheet(
-            "background-color: #4CAF50; color: white; font-size: 16px; "
-            "padding: 10px; margin-left: 350px; margin-right: 350px;"
+            "background-color: #4CAF50; color: white; font-size: 16px; padding: 10px;"
         )
         self.record_button.clicked.connect(self.toggle_recording)
-        layout.addWidget(self.record_button)
+        self.button_layout.addWidget(self.record_button)
+
+        self.restart_button = QPushButton("Restart")
+        self.restart_button.setStyleSheet(
+            "background-color: #008CBA; color: white; font-size: 16px; padding: 10px;"
+        )
+        self.restart_button.clicked.connect(self.restart_practice)
+        self.restart_button.hide()
+        self.button_layout.addWidget(self.restart_button)
+
+        self.next_button = QPushButton("Next")
+        self.next_button.setStyleSheet(
+            "background-color: #f44336; color: white; font-size: 16px; padding: 10px;"
+        )
+        self.next_button.clicked.connect(self.next_practice)
+        self.next_button.hide()
+        self.button_layout.addWidget(self.next_button)
+        
+        layout.addLayout(self.button_layout)
         
         self.transcription_label = QLabel("Transcription will appear here")
         self.transcription_label.setStyleSheet(
@@ -100,7 +118,16 @@ class MainWindow(QMainWindow):
         self.load_text()
 
     def load_text(self):
-        """Load practice text from JSON file"""
+        self.status_label.setText("")
+        self.text_display.setText("Loading text...")
+        self.transcription_label.setText("Transcription will appear here")
+        
+        # Show record button, hide others
+        self.record_button.show()
+        self.record_button.setEnabled(True)
+        self.restart_button.hide()
+        self.next_button.hide()
+
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             json_path = os.path.join(current_dir, 'resources', 'texts.json')
@@ -114,7 +141,6 @@ class MainWindow(QMainWindow):
                         
                         self.word_count = len(self.current_text.split())
                         self.target_time = min(30, (self.word_count / 140) * 60)
-                        self.status_label.setText(f"Target time: {self.target_time:.1f} seconds")
                         break
                 else:
                     self.text_display.setText("Text with ID 1 not found")
@@ -138,8 +164,7 @@ class MainWindow(QMainWindow):
         self.recording = True
         self.record_button.setText("Stop Recording")
         self.record_button.setStyleSheet(
-            "background-color: #f44336; color: white; font-size: 16px; "
-            "padding: 10px; margin-left: 350px; margin-right: 350px;"
+            "background-color: #f44336; color: white; font-size: 16px; padding: 10px;"
         )
         self.status_label.setText("Recording... 0s")
         self.seconds_recorded = 0
@@ -167,7 +192,6 @@ class MainWindow(QMainWindow):
             self.seconds_recorded += 1
             self.status_label.setText(f"Recording... {self.seconds_recorded}s")
             
-            
             if self.seconds_recorded >= 30:
                 self.stop_recording()
 
@@ -181,55 +205,24 @@ class MainWindow(QMainWindow):
             self.record_timer.stop()
             self.record_button.setText("Start Recording")
             self.record_button.setStyleSheet(
-                "background-color: #4CAF50; color: white; font-size: 16px; "
-                "padding: 10px; margin-left: 350px; margin-right: 350px;"
+                "background-color: #4CAF50; color: white; font-size: 16px; padding: 10px;"
             )
             self.status_label.setText("Processing recording...")
-            
-            if self.recording_thread and self.recording_thread.is_alive():
-                self.recording_thread.join(timeout=1.0)
-            
-          
-            self.display_results()
-            
-            # This should be handled by the custom event
-            # threading.Thread(target=self.run_transcription).start()
+            # Hide the record button while processing/transcribing
+            self.record_button.hide()
 
     def customEvent(self, event):
         if event.type() == RecordingFinishedEventType:
-            self.display_results()
             self.run_transcription()
 
-    def display_results(self):
-        if self.actual_duration > 0:
-            wpm = (self.word_count / self.actual_duration) * 60
-            
-            # Generate feedback
-            if wpm < 120:
-                feedback = "Too slow for conversation (aim for 140 WPM)"
-            elif wpm > 160:
-                feedback = "Too fast, focus on clarity"
-            elif wpm < 130:
-                feedback = "Slightly slow, try to speed up a bit"
-            elif wpm > 150:
-                feedback = "Slightly fast, try to slow down a bit"
-            else:
-                feedback = "Perfect conversational pace!"
-            
-            self.status_label.setText(
-                f"Recorded: {self.actual_duration:.1f}s | "
-                f"WPM: {wpm:.1f} | {feedback}"
-            )
-        else:
-            self.status_label.setText("Recording failed or was too short")
-
     def run_transcription(self):
-        self.transcription_label.setText("Transcribing audio...")
+        self.status_label.setText("Transcribing audio...")
+        # Ensure record button is hidden during transcription
+        self.record_button.hide()
         
         self.worker = Worker(self.audio_file, self.current_text)
         self.transcription_thread = threading.Thread(target=self.worker.run)
         
-        # Connect signals to slots
         self.worker.transcription_finished.connect(self.on_transcription_finished)
         self.worker.transcription_error.connect(self.on_transcription_error)
         
@@ -238,16 +231,33 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str, str)
     def on_transcription_finished(self, transcribed_text, graded_html):
         self.text_display.setText(graded_html)
-        self.transcription_label.setText(
-            f"{transcribed_text}"
-        )
+        self.transcription_label.setText(f"{transcribed_text}")
+        self.status_label.setText("")  # Clear status label
         self.transcription_thread = None
+
+        # Show Restart and Next buttons
+        self.record_button.hide()
+        self.restart_button.show()
+        self.next_button.show()
 
     @pyqtSlot(str)
     def on_transcription_error(self, error_msg):
         self.transcription_label.setText(error_msg)
+        self.status_label.setText("Error. Ready to record again.")
         print(error_msg)
         self.transcription_thread = None
+        # Show only the restart button in case of error
+        self.record_button.hide()
+        self.restart_button.show()
+        self.next_button.hide()
+
+    def restart_practice(self):
+        self.load_text()
+
+    def next_practice(self):
+        # For now, this does nothing as requested.
+        # Later, it will load a new paragraph.
+        pass
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
