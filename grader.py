@@ -11,10 +11,7 @@ def tokenize_with_spans(text):
     return words
 
 def grade_text(original, transcription):
-    """
-    Compares original text to a transcription, calculates accuracy, and generates
-    color-coded HTML to highlight differences.
-    """
+
     original_tokens = tokenize_with_spans(original)
     transcription_tokens = tokenize_with_spans(transcription)
 
@@ -33,10 +30,10 @@ def grade_text(original, transcription):
         if tag == 'equal':
             for i in range(i1, i2):
                 token = original_tokens[i]
-                # Add any preceding text (whitespace, punctuation)
+
                 html_output.append(html.escape(original[last_original_end:token[1]]))
-                # Add the correctly matched word
-                html_output.append(f'<span style="color: #4CAF50;">{html.escape(token[0])}</span>')
+                # correct words
+                html_output.append(f'<span style="color: #81d17b;">{html.escape(token[0])}</span>')
                 last_original_end = token[2]
 
         elif tag == 'replace':
@@ -44,7 +41,7 @@ def grade_text(original, transcription):
             for i in range(i1, i2):
                 token = original_tokens[i]
                 html_output.append(html.escape(original[last_original_end:token[1]]))
-                html_output.append(f'<span style="color: #f44336; font-weight: bold;">{html.escape(token[0])}</span>')
+                html_output.append(f'<span style="color: #d66e68;">{html.escape(token[0])}</span>')
                 last_original_end = token[2]
                 errors.append({'type': 'substitution', 'original': token[0], 'spoken': " ".join(transcription_words_lower[j1:j2])})
 
@@ -53,7 +50,7 @@ def grade_text(original, transcription):
             for i in range(i1, i2):
                 token = original_tokens[i]
                 html_output.append(html.escape(original[last_original_end:token[1]]))
-                html_output.append(f'<span style="color: #f44336; text-decoration: line-through;">{html.escape(token[0])}</span>')
+                html_output.append(f'<span style="color: #757474;">{html.escape(token[0])}</span>')
                 last_original_end = token[2]
                 errors.append({'type': 'deletion', 'original': token[0]})
 
@@ -63,7 +60,7 @@ def grade_text(original, transcription):
             html_output.append(f'<span style="color: #9C27B0; text-decoration: underline;">({html.escape(spoken_words)})</span>')
             errors.append({'type': 'insertion', 'spoken': spoken_words})
 
-    # Add any remaining text from the original
+
     html_output.append(html.escape(original[last_original_end:]))
 
     return ''.join(html_output), errors

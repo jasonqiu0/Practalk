@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
     def on_transcription_finished(self, transcribed_text, graded_html):
         self.text_display.setText(graded_html)
         self.transcription_label.setText(
-            f"Transcription:\n{transcribed_text}"
+            f"{transcribed_text}"
         )
         self.transcription_thread = None
 
