@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
 
         self.restart_button = QPushButton("Restart")
         self.restart_button.setStyleSheet(
-            "background-color: #008CBA; color: white; font-size: 16px; padding: 10px;"
+            "background-color: #c9a84c; color: white; font-size: 16px; padding: 10px;"
         )
         self.restart_button.clicked.connect(self.restart_practice)
         self.restart_button.hide()
@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
 
         self.next_button = QPushButton("Next")
         self.next_button.setStyleSheet(
-            "background-color: #f44336; color: white; font-size: 16px; padding: 10px;"
+            "background-color: #4CAF50; color: white; font-size: 16px; padding: 10px;"
         )
         self.next_button.clicked.connect(self.next_practice)
         self.next_button.hide()
