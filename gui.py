@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QApplication
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject, pyqtSlot, QEvent, QCoreApplication
 import os
 import json
 import threading
@@ -7,6 +7,38 @@ import time
 import sys
 from audio import record_audio
 from whisper_config import transcribe  
+from grader import grade_text
+
+# Define a custom event for thread-safe signaling
+RecordingFinishedEventType = QEvent.Type(QEvent.registerEventType())
+
+class RecordingFinishedEvent(QEvent):
+    def __init__(self):
+        super().__init__(RecordingFinishedEventType)
+
+class Worker(QObject):
+    """
+    Worker to handle transcription in a background thread and safely signal results.
+    """
+    transcription_finished = pyqtSignal(str, str)
+    transcription_error = pyqtSignal(str)
+
+    def __init__(self, audio_file, current_text):
+        super().__init__()
+        self.audio_file = audio_file
+        self.current_text = current_text
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            if self.audio_file and os.path.exists(self.audio_file):
+                transcribed_text = transcribe(self.audio_file)
+                graded_html, _ = grade_text(self.current_text, transcribed_text)
+                self.transcription_finished.emit(transcribed_text, graded_html)
+            else:
+                self.transcription_error.emit("No audio file to transcribe")
+        except Exception as e:
+            self.transcription_error.emit(f"Transcription error: {e}")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -61,6 +93,7 @@ class MainWindow(QMainWindow):
         self.recording_thread = None
         self.audio_file = None
         self.actual_duration = 0
+        self.transcription_thread = None
 
         layout.addStretch()
 
@@ -125,11 +158,9 @@ class MainWindow(QMainWindow):
                 duration=30, 
                 stop_event=stop_event
             )
-            
-            QApplication.instance().postEvent(self, RecordingFinishedEvent())
+            QCoreApplication.postEvent(self, RecordingFinishedEvent())
         except Exception as e:
             print(f"Recording error: {str(e)}")
-            self.status_label.setText(f"Recording error: {str(e)}")
 
     def update_recording_timer(self):
         if self.recording:
@@ -161,7 +192,13 @@ class MainWindow(QMainWindow):
           
             self.display_results()
             
-            threading.Thread(target=self.run_transcription).start()
+            # This should be handled by the custom event
+            # threading.Thread(target=self.run_transcription).start()
+
+    def customEvent(self, event):
+        if event.type() == RecordingFinishedEventType:
+            self.display_results()
+            self.run_transcription()
 
     def display_results(self):
         if self.actual_duration > 0:
@@ -187,24 +224,30 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Recording failed or was too short")
 
     def run_transcription(self):
-        try:
-            if self.audio_file and os.path.exists(self.audio_file):
+        self.transcription_label.setText("Transcribing audio...")
+        
+        self.worker = Worker(self.audio_file, self.current_text)
+        self.transcription_thread = threading.Thread(target=self.worker.run)
+        
+        # Connect signals to slots
+        self.worker.transcription_finished.connect(self.on_transcription_finished)
+        self.worker.transcription_error.connect(self.on_transcription_error)
+        
+        self.transcription_thread.start()
 
-                self.transcription_label.setText("Transcribing audio...")
-                
-                transcribed_text = transcribe(self.audio_file)
-                
-                self.transcription_label.setText(
-                    f"{transcribed_text}"
-                )
-            else:
-                self.transcription_label.setText("No audio file to transcribe")
-        except Exception as e:
-            print(f"Transcription error: {str(e)}")
-            self.transcription_label.setText(f"Transcription error: {str(e)}")
+    @pyqtSlot(str, str)
+    def on_transcription_finished(self, transcribed_text, graded_html):
+        self.text_display.setText(graded_html)
+        self.transcription_label.setText(
+            f"Transcription:\n{transcribed_text}"
+        )
+        self.transcription_thread = None
 
-class RecordingFinishedEvent:
-    pass
+    @pyqtSlot(str)
+    def on_transcription_error(self, error_msg):
+        self.transcription_label.setText(error_msg)
+        print(error_msg)
+        self.transcription_thread = None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
