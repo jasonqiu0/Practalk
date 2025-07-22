@@ -8,6 +8,7 @@ import sys
 from audio import record_audio
 from whisper_config import transcribe  
 from grader import grade_text
+import random
 
 RecordingFinishedEventType = QEvent.Type(QEvent.registerEventType())
 
@@ -112,12 +113,14 @@ class MainWindow(QMainWindow):
         self.audio_file = None
         self.actual_duration = 0
         self.transcription_thread = None
+        self.available_ids = []
+        self.current_id = None
 
         layout.addStretch()
 
-        self.load_text()
+        self.load_text(randomize=True)
 
-    def load_text(self):
+    def load_text(self, randomize=False, specific_id=None):
         self.status_label.setText("")
         self.text_display.setText("Loading text...")
         self.transcription_label.setText("Transcription will appear here")
@@ -131,19 +134,27 @@ class MainWindow(QMainWindow):
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             json_path = os.path.join(current_dir, 'resources', 'texts.json')
-
             with open(json_path, 'r') as f:
                 texts = json.load(f)
+                if not self.available_ids:
+                    self.available_ids = [item['id'] for item in texts]
+                # Determine which id to use
+                if specific_id is not None:
+                    chosen_id = specific_id
+                elif randomize:
+                    chosen_id = random.choice(self.available_ids)
+                else:
+                    chosen_id = self.current_id if self.current_id is not None else self.available_ids[0]
+                self.current_id = chosen_id
                 for item in texts:
-                    if item['id'] == 1:
+                    if item['id'] == chosen_id:
                         self.current_text = item['text']
                         self.text_display.setText(item['text'])
-                        
                         self.word_count = len(self.current_text.split())
                         self.target_time = min(30, (self.word_count / 140) * 60)
                         break
                 else:
-                    self.text_display.setText("Text with ID 1 not found")
+                    self.text_display.setText("Text with selected ID not found")
         except FileNotFoundError:
             self.text_display.setText("Texts file not found")
         except json.JSONDecodeError:
@@ -208,7 +219,6 @@ class MainWindow(QMainWindow):
                 "background-color: #4CAF50; color: white; font-size: 16px; padding: 10px;"
             )
             self.status_label.setText("Processing recording...")
-            # Hide the record button while processing/transcribing
             self.record_button.hide()
 
     def customEvent(self, event):
@@ -217,7 +227,6 @@ class MainWindow(QMainWindow):
 
     def run_transcription(self):
         self.status_label.setText("Transcribing audio...")
-        # Ensure record button is hidden during transcription
         self.record_button.hide()
         
         self.worker = Worker(self.audio_file, self.current_text)
@@ -246,18 +255,21 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Error. Ready to record again.")
         print(error_msg)
         self.transcription_thread = None
-        # Show only the restart button in case of error
         self.record_button.hide()
         self.restart_button.show()
         self.next_button.hide()
 
     def restart_practice(self):
-        self.load_text()
+        self.load_text(specific_id=self.current_id)
 
     def next_practice(self):
-        # For now, this does nothing as requested.
-        # Later, it will load a new paragraph.
-        pass
+
+        if len(self.available_ids) > 1:
+            next_ids = [i for i in self.available_ids if i != self.current_id]
+            next_id = random.choice(next_ids)
+            self.load_text(specific_id=next_id)
+        else:
+            self.load_text(specific_id=self.current_id)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
